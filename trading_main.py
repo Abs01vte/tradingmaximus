@@ -13,7 +13,7 @@ import kaleido
 #from dash import 
 
 # Ticker Symbol and Date Range
-symbols = ["AAPL", "AMD", "AMZN", "GOOGL", "INTC", "ORCL", "TXN"]
+symbols = ["AAPL", "AMD", "AMZN", "ARM", "BITB", "GOOGL", "INTC", "MARA", "MSFT", "ORCL", "SPY", "TSM", "TXN"]
 
 st = dt.datetime(2023, 1, 2)
 en = dt.datetime.today()
@@ -74,6 +74,7 @@ for x in range(len(symbols)):
     """
 #stockdata = pdr.DataReader('AMD', 'stooq',st,en)
 #stockdata = yf.download(["AAPL", "AMD", "AMZN", "GOOG", "INTC", "ORCL", "TXN"], start="2024-01-02", end="2024-01-24", group_by='ticker', interval="5m")
+yesterday = dt.datetime.today() - timedelta(1)
 
 class Candle:
     def __init__(self, date, open, high, low, close):
@@ -82,7 +83,16 @@ class Candle:
         self.high=high
         self.low=low
         self.close=close
-
+class Order:
+    def __init__(self, date, time, position, symbol):
+        self.date=date
+        self.time = time
+        self.position=position
+        self.symbol=symbol
+    def order_report(date,time,price,symbol):
+        orderData={'Date': date, 'Time':time, 'Price':price, 'Symbol':symbol}
+        orderReport = pd.DataFrame(data=orderData, index=[0])
+        print(orderReport.head())
 
 # Fibonacci Retracement Level Calculation
 
@@ -98,8 +108,6 @@ def analyzeTrend(val):
 # Daily Highs and Lows are calculated in realtime based on the newest 5min charts
 dailyHigh = 0
 dailyLow = 0
-
-yesterday = dt.datetime.today() - timedelta(1)
 
 for x in range(len(symbols)):
     stockdata = yf.download(symbols[x], yesterday, dt.datetime.now(), interval="5m")
@@ -129,7 +137,7 @@ for x in range(len(symbols)):
     trendFibPrices=[0,0,0,0]
 
     # Trend Analysis
-    start_trend = dt.datetime.today() - timedelta(3)
+    start_trend = dt.datetime.today() - timedelta(4)
     trendData = pdr.DataReader(symbols[x],'stooq',start_trend,dt.datetime.today())
 
     index = 3
@@ -137,6 +145,7 @@ for x in range(len(symbols)):
     gap_value=0
     trendHigh=0
     trendLow=trendData.Low.values[0]
+    
     while index >= 0:
         if(trendData.Low.values[index] < trendLow):
             trendLow = float(trendData.Low.values[index])
@@ -144,33 +153,44 @@ for x in range(len(symbols)):
             trendHigh = trendData.High.values[index]
         delta_value+=trendData.Close.values[index] - trendData.Open.values[index]
         if(index<3):
-            gap_value+=trendData.Open.values[index] - trendData.Open.values[index + 1]
+            gap_value+=trendData.Open.values[index] - trendData.Close.values[index + 1]
+            delta_value+=trendData.Open.values[index] - trendData.Close.values[index+1]
         index-=1
     #print(f"Change in value for {symbols[x]} stock the last few days: {delta_value:10.2f}$ or {((delta_value/trendData.Open.values[3])*100):10.4f}%")
-    #print(f"Gap up/down values over the examination period: {gap_value:10.2f} or {((gap_value/trendData.Close.values[0])*100):10.4f}%")
+    #print(f"Gap up/down values over the examination period: {gap_value:10.2f}$ or {((gap_value/trendData.Close.values[0])*100):10.4f}%")
     
     diffTrend=trendHigh-trendLow
     snex=0
     expansion = False
     
+    # If there are several gap up days that result in selling, it is then bearish, and is likely to expand to the downside
+    if(delta_value<-0.2 and gap_value>0.2):
+        trend = 1
+        expansion=True
+    # If there are several gap down days that result in buying,then it is bullish, and is likely to expand to the upside
+    if(delta_value>0.2 and gap_value<-0.2):
+        trend = 0
+        expansion=True
     # If the change in value is a strong bearish candle, and the gaps confirm, then it is bearish
     if(delta_value < -0.2 and gap_value < 0):
         trend = 1
     # If the change in value is a strong bullish candle, and the gaps confirm, then it is bullish
     elif(delta_value > 0.2 and gap_value > 0):
-        trend=0
+        trend = 0
     # If the change in value is neutral/doji candle, and the gaps are neutral or lower, then it is sideways
     elif(-0.2<delta_value<0.2 and (gap_value/trendData.Close.values[0]) < 0.01):
-        trend=2
-    # If the change in value is bearish, but institutional sentiment is up, then it is bullish
+        trend = 2
+    # If the change in value is bearish, but institutional sentiment is up, then it is bullish, and is likely to expand to the upside
     elif(delta_value < -0.2 and gap_value > 0):
-        trend=0
-    # If the change in value is bullish, but institutional sentiment is down, then it is bearish
+        trend = 0
+        expansion=True
+    # If the change in value is bullish, but institutional sentiment is down, then it is bearish, and is likely to expand to the upside
     elif(delta_value > 0.2 and gap_value < 0):
-        trend=1
+        trend = 1
+        expansion=True
     # If all else fails, it is sideways therefore
     else:
-        trend=2
+        trend = 2
     
     snex=0
     while(snex < 4):
@@ -192,6 +212,7 @@ for x in range(len(symbols)):
                                            low=chartdata.Low.values,
                                            close=chartdata.Close.values)])
 
+    # If the trend is bullish or bearish, the graphing is different to better express Fibonacci levels
     if(trend == 0):
         chart.add_hline(y=trendLow)
         chart.add_hline(y=trendFibPrices[0])
@@ -209,6 +230,8 @@ for x in range(len(symbols)):
         chart.add_hline(y=trendFibPrices[3])
         chart.add_hline(y=trendHigh)
         chart.add_hline(y=trendLow - (diffTrend*.2))
+
+    # Update Layout and print
     chart.update_layout(
         title=f"{symbols[x]} Four Day Price Action",
         xaxis_title="Time",
