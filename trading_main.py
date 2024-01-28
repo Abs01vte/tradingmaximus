@@ -109,11 +109,9 @@ def analyzeTrend(val):
 dailyHigh = 0
 dailyLow = 0
 
+# Daily Reports and Analysis for the symbols
 for x in range(len(symbols)):
     stockdata = yf.download(symbols[x], yesterday, dt.datetime.now(), interval="5m")
-    #ticker = stockdata[symbols[x]]
-    #ticker = ticker.split("\n",3)[3]
-    #candles = ticker.split(' ')
     dailyHigh = stockdata.High.values[0]
     dailyLow = stockdata.Low.values[0]
     for y in range(len(stockdata.High.values)):
@@ -122,16 +120,7 @@ for x in range(len(symbols)):
         if(stockdata.Low.values[y] < dailyLow):
             dailyLow = stockdata.Low.values[y]
     diff = dailyHigh-dailyLow
-    """
-    print(f"Data for {symbols[x]}")
-    print(f"100% zone: {dailyHigh:10.2f}")
-    print("78.6% zone: {:10.2f}".format(dailyHigh - (diff*0.236)))
-    print("61.8% zone: {:10.2f}".format(dailyHigh - (diff*0.382)))
-    print("Discount/Premium intraday line: {:10.2f}".format(dailyHigh - (diff/2)))
-    print("38.2 zone: {:10.2f}".format(dailyHigh - (diff*0.618)))
-    print("23.6% zone: {:10.2f}".format(dailyHigh - (diff*0.786)))
-    print(f"LOD: {dailyLow:10.2f}")
-    """
+
     # Calulate Fibonacci Levels
     fibLevels = [0.236, 0.382, 0.618, 0.764]
     trendFibPrices=[0,0,0,0]
@@ -140,12 +129,22 @@ for x in range(len(symbols)):
     start_trend = dt.datetime.today() - timedelta(4)
     trendData = pdr.DataReader(symbols[x],'stooq',start_trend,dt.datetime.today())
 
+    # Starting with the oldest data in the dataset
     index = 3
+    # delta_value is the change in value from open -> close across the examination period
     delta_value=0
+    # gap_value is the change in value from close -> open across the examination period
     gap_value=0
+
+    ## Gap Value shows institutional sentiment, 
+    ## Delta Value shows retail sentiment
+
+    # initialize the Fibonacci 100% and 0% levels
     trendHigh=0
     trendLow=trendData.Low.values[0]
     
+    # Sort through the data (oldest to newest) to find the high of the trend, 
+    # the low of the trend, and the Institutional Sentiment (gap_value) and Retail Sentiment (delta_value)
     while index >= 0:
         if(trendData.Low.values[index] < trendLow):
             trendLow = float(trendData.Low.values[index])
@@ -156,11 +155,11 @@ for x in range(len(symbols)):
             gap_value+=trendData.Open.values[index] - trendData.Close.values[index + 1]
             delta_value+=trendData.Open.values[index] - trendData.Close.values[index+1]
         index-=1
-    #print(f"Change in value for {symbols[x]} stock the last few days: {delta_value:10.2f}$ or {((delta_value/trendData.Open.values[3])*100):10.4f}%")
-    #print(f"Gap up/down values over the examination period: {gap_value:10.2f}$ or {((gap_value/trendData.Close.values[0])*100):10.4f}%")
     
+    # diffTrend is the absolute value of the Fibonacci range for the examination period
+    # used for calculating the Fibonacci retracement levels
     diffTrend=trendHigh-trendLow
-    snex=0
+    # 
     expansion = False
     
     # If there are several gap up days that result in selling, it is then bearish, and is likely to expand to the downside
@@ -192,20 +191,23 @@ for x in range(len(symbols)):
     else:
         trend = 2
     
+    # snex is a temp variable
     snex=0
+    # For each percentage point in fibLevels, a relative Fibonacci level is created for the trend values of the stock
     while(snex < 4):
         trendFibPrices[snex] = trendLow + (diffTrend * fibLevels[snex])
         snex+=1
 
-    #chartdata = pdr.DataReader(symbols[x],'yahoo',)
     chartdata = yf.download(symbols[x],yesterday,dt.datetime.today(),interval="5m")
     chartdata.reset_index(inplace=True)
+    # Feeding the chart clean 5 minute times
     fiveMinTimes=["9:30","9:35","9:40", "9:45", "9:50", "9:55", "10:00", "10:05","10:10","10:15", "10:20", "10:25", "10:30", "10:35",
                   "10:40","10:45","10:50", "10:55", "11:00", "11:05", "11:10","11:15","11:20","11:25", "11:30", "11:35", "11:45", "11:50",
                   "11:55","12:00","12:05", "12:10", "12:15", "12:20", "12:25","12:30","12:35", "12:40","12:45","12:50", "12:55", "1:00", 
                   "1:05", "1:10", "1:15","1:20","1:25", "1:30", "1:35", "1:40", "1:45", "1:50","1:55","2:00", "2:05", "2:10", "2:15", "2:20",
                   "2:25","2:30","2:35", "2:40", "2:45", "2:50", "2:55", "3:00", "3:05", "3:10","3:15","3:20", "3:25", "3:30", "3:35", "3:40",
                   "3:45","3:50","3:55", "4:00"]
+    # Make the chart with the clean time intervals and all of the values of the candlesticks
     chart = go.Figure(data=[go.Candlestick(x=fiveMinTimes,
                                             open=chartdata.Open.values,
                                            high=chartdata.High.values,
