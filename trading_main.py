@@ -126,7 +126,7 @@ for x in range(len(symbols)):
     trendFibPrices=[0,0,0,0]
 
     # Trend Analysis
-    start_trend = dt.datetime.today() - timedelta(4)
+    start_trend = dt.datetime.today() - timedelta(7)
     trendData = pdr.DataReader(symbols[x],'stooq',start_trend,dt.datetime.today())
 
     # Starting with the oldest data in the dataset
@@ -197,8 +197,11 @@ for x in range(len(symbols)):
     while(snex < 4):
         trendFibPrices[snex] = trendLow + (diffTrend * fibLevels[snex])
         snex+=1
-
-    chartdata = yf.download(symbols[x],yesterday,dt.datetime.today(),interval="5m")
+    
+    today=dt.datetime.today()
+    today_open=today.replace(hour=9,minute=30)
+    today_close=today.replace(hour=16,minute=00)
+    chartdata = yf.download(symbols[x],today_open,today_close,interval="5m")
     chartdata.reset_index(inplace=True)
     # Feeding the chart clean 5 minute times
     fiveMinTimes=["9:30","9:35","9:40", "9:45", "9:50", "9:55", "10:00", "10:05","10:10","10:15", "10:20", "10:25", "10:30", "10:35",
@@ -235,9 +238,22 @@ for x in range(len(symbols)):
 
     # Update Layout and print
     chart.update_layout(
-        title=f"{symbols[x]} Four Day Price Action",
+        title=f"{symbols[x]} Daily 5 Minute Data with 4-day Price Action",
         xaxis_title="Time",
-        yaxis_title="Stock Value",
+        yaxis_title="$",
+        annotations=[
+            go.layout.Annotation(
+                text=f"Over the examination period:<br>The trend for {symbols[x]} is {analyzeTrend(trend)}<br>Institutional buying: {gap_value:10.2f} or {(gap_value/trendData.Close.values[0])*100:10.2f}%<br>Retail buying: {delta_value:10.2f} or {(delta_value/trendData.Close.values[0])*100:10.2f}%<br>Buying zones: <br>Long- {trendFibPrices[0]:10.2f} to {trendFibPrices[1]:10.2f} and<br>Short- {trendFibPrices[3]:10.2f}   to    {trendFibPrices[2]:10.2f}",
+                align='left',
+                showarrow=False,
+                xref='paper',
+                x=0.47,
+                y=trendHigh+(trendHigh*0.01)+0.5,
+                font=(dict(size=12)),
+                bordercolor='yellow',
+                borderwidth=2
+            )
+        ],
     )
     plo.plot(chart)
 
