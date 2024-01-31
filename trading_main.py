@@ -101,6 +101,7 @@ for x in range(len(symbols)):
     yearly_delta_percent = yearly_delta_value/(stockdaten.Open.values[len(stockdaten.Open.values)-1])
     yearly_gap_percent = yearly_gap_value/(stockdaten.Open.values[len(stockdaten.Open.values)-1])
     
+    # If the Retail traders are selling, but the banks/institutions are buying, then:
     if(yearly_delta_value<-0.5 and yearly_gap_percent>0.2):
         # If the trend is downwards, with several gap up movements, 
         # but the price of the yearly difference in value between the open of the year and now is in a buying zone
@@ -232,24 +233,37 @@ for x in range(len(symbols)):
     # Expansion being false indicates Compression
     # Expansion being true indicates that the price will go past the current examination bands
     expansion = False
-    
+    delta_value_percent = delta_value/trendData.Open.values[3]
+    gap_value_percent = gap_value/trendData.Open.values[3]
     # If there are several gap up days that result in selling, it is then bearish, and is likely to expand to the downside
-    if(delta_value<-0.2 and gap_value>0.2):
+    if(delta_value_percent<-0.2 and gap_value_percent>0.2):
         trend = 1
         expansion=True
     # If there are several gap down days that result in buying,then it is bullish, and is likely to expand to the upside
-    if(delta_value>0.2 and gap_value<-0.2):
+    if(delta_value_percent>0.2 and gap_value_percent<-0.2):
         trend = 0
         expansion=True
     # If the change in value is a strong bearish candle, and the gaps confirm, then it is bearish
-    if(delta_value < -0.2 and gap_value < 0):
+    if(delta_value_percent < -0.2 and gap_value_percent < 0):
         trend = 1
     # If the change in value is a strong bullish candle, and the gaps confirm, then it is bullish
-    elif(delta_value > 0.2 and gap_value > 0):
+    elif(delta_value_percent > 0.2 and gap_value_percent > 0):
         trend = 0
-    # If the change in value is neutral/doji candle, and the gaps are neutral or lower, then it is sideways
-    elif(-0.2<delta_value<0.2 and (gap_value/trendData.Close.values[0]) < 0.01):
-        trend = 2
+    # If the change in value is neutral/doji candle...
+    elif(-0.2<=delta_value_percent<=0.2):
+        # ...but the gap value is neutral-lower, then it is bearish 
+        if(gap_value_percent < 0.005):
+            trend = 1
+            expansion = True
+        # ...but the gap value is neutral-positive, then it is sideways
+        #    because institutional sentiment is up, but retail is uncertain
+        elif(0.02>gap_value_percent>= 0.005):
+            trend = 2
+        # ...but the gap value is the main driver of the change in value
+        #    then it is bullish
+        elif(gap_value_percent>=0.02):
+            trend = 0
+            expansion = True
     # If the change in value is bearish, but institutional sentiment is up, then it is bullish, and is likely to expand to the upside
     elif(delta_value < -0.2 and gap_value > 0):
         trend = 0
@@ -289,7 +303,7 @@ for x in range(len(symbols)):
                                            close=chartdata.Close.values)])
 
     # If the trend is bullish or bearish, the graphing is different to better express Fibonacci levels
-    if(trend == 0):
+    if(trend == 0 or trend == 2):
         chart.add_hline(y=trendLow)
         chart.add_hline(y=trendFibPrices[0])
         chart.add_hline(y=trendFibPrices[1])
