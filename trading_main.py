@@ -129,9 +129,14 @@ for x in range(len(symbols)):
     # If the change in value is a strong bearish candle, and the gaps confirm, then it is bearish
     if(yearly_delta_percent < -0.05 and yearly_gap_percent < 0):
         trend = 1
-    # If the change in value is a strong bullish candle, and the gaps confirm, then it is bullish
+    # If the change in value is a strong bullish candle, and the gaps confirm...
     elif(yearly_delta_percent > 0.01 and yearly_gap_value > 0):
-        trend = 0
+        # ...but it is near the highest prices of the year, then it is bearish
+        if(stockdaten.Close.values[0] <= (yearlyHigh * 0.99)):
+            trend = 1
+        # ...but it is in a buying zone, then it is bullish
+        elif(stockdaten.Close.values[0] >= ((yearlyFibPrices[0] - yearlyLow) * 0.5)+yearlyLow and stockdaten.Close.values[0] < yearlyFibPrices[1]):
+            trend = 0
     # If the change in value is neutral/doji candle, and the gaps are neutral or lower, then it is sideways
     elif(-0.2<yearly_delta_value<0.2 and yearly_gap_percent < 0.01):
         trend = 2
@@ -166,17 +171,21 @@ for x in range(len(symbols)):
     )
     pio.write_image(graph, image_output_path)
     # Add the Analyses
-    pdf_text = f"The trend for {symbols[x]} is {analyzeTrend(trend)}\n Institutional buying: {yearly_gap_value:10.2f} or {yearly_gap_percent*100:10.2f}%\n Retail buying: {yearly_delta_value:10.2f} or {yearly_delta_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {yearlyLow} to {yearlyFibPrices[0]:10.2f}\n Or: {yearlyFibPrices[0]} to {yearlyFibPrices[1]:10.2f}\n Short:\n Optimal: {yearlyHigh:10.2f} to {yearlyFibPrices[3]:10.2f}\n Or: {yearlyFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
+    pdf_text = f"The trend for {symbols[x]} is {analyzeTrend(trend)}\n Institutional buying: {yearly_gap_value:10.2f} or {yearly_gap_percent*100:10.2f}%\n Retail buying: {yearly_delta_value:10.2f} or {yearly_delta_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {yearlyLow:10.2f} to {yearlyFibPrices[0]:10.2f}\n Or: {yearlyFibPrices[0]:10.2f} to {yearlyFibPrices[1]:10.2f}\n Short:\n Optimal: {yearlyHigh:10.2f} to {yearlyFibPrices[3]:10.2f}\n Or: {yearlyFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
 
-    # Add the chart to a pdf
+    # Add the chart to the PDF
     c = canvas.Canvas(yearly_pdf_output_path, pagesize="letter")
     c.setTitle(f"{symbols[x]} Yearly Analyses")
     c.drawImage(image_output_path,x=-17,y=250)
+    
+    # Add the analyses to the PDF
     textobject = c.beginText(50, 225)  # Specify text position
     textobject.setFont("Helvetica", 14)  # Specify font and size
     textobject.textLines(pdf_text)  # Add text content
     c.drawText(textobject)
     c.showPage()
+    
+    # Save and close the PDF
     c.save()
     """
 
@@ -258,7 +267,7 @@ for x in range(len(symbols)):
             trend = 0
 
     # If there are several gap down days that result in buying,then it is bullish, and is likely to expand to the upside
-    if(delta_value_percent>0.02 and gap_value_percent<-0.02):
+    if(delta_value_percent>0.02 and (gap_value_percent<-0.005 or gap_value_percent >0.005)):
         trend = 0
         expansion=True
     # If the change in value is a strong bearish candle, and the gaps confirm, then it is bearish
@@ -266,16 +275,19 @@ for x in range(len(symbols)):
         trend = 1
     # If the change in value is a strong bullish candle, and the gaps confirm, then it is bullish
     elif(delta_value_percent > 0.02 and gap_value_percent > 0):
-        trend = 0
+        if(stockdaten.Close.values[0] <= (yearlyHigh * 0.99)):
+            trend = 1
+        elif(stockdaten.Close.values[0] >= ((trendFibPrices[0] - yearlyLow) * 0.5)+yearlyLow and stockdaten.Close.values[0] < trendFibPrices[1]):
+            trend = 0
     # If the change in value is neutral/doji candle...
-    elif(-0.02<=delta_value_percent<=0.02):
+    elif(-0.01<=delta_value_percent<=0.01):
         # ...but the gap value is neutral-lower, then it is bearish 
         if(gap_value_percent < 0.005):
             trend = 1
             expansion = True
         # ...but the gap value is neutral-positive, then it is sideways
         #    because institutional sentiment is up, but retail is uncertain
-        elif(0.02>gap_value_percent>= 0.005):
+        elif(0.02<gap_value_percent>= 0.005):
             trend = 2
         # ...but the gap value is the main driver of the change in value
         #    then it is bullish
@@ -327,44 +339,31 @@ for x in range(len(symbols)):
     chart.add_hline(y=trendHigh, line_color='pink')
     chart.add_hline(y=(trendHigh - (diffTrend/2)), line_color="yellow")
     chart.add_hline(y=trendLow,line_color='black')
-    """
-    if(trend == 0 or trend == 2):
-        chart.add_hline(y=trendLow)
-        chart.add_hline(y=trendFibPrices[0])
-        chart.add_hline(y=trendFibPrices[1])
-        chart.add_hline(y=(trendHigh - (diffTrend/2)), line_color="yellow")
-        chart.add_hline(y=trendFibPrices[2])
-        chart.add_hline(y=trendFibPrices[3])
-        chart.add_hline(y=trendHigh)
-    elif(trend == 1):
-        chart.add_hline(y=(trendData.Open[1] + trendData.Close.values[2])/2, line_color="yellow")
-        chart.add_hline(y=trendFibPrices[0])
-        chart.add_hline(y=trendFibPrices[1])
-        chart.add_hline(y=(trendHigh - (diffTrend/2)))
-        chart.add_hline(y=trendFibPrices[2])
-        chart.add_hline(y=trendFibPrices[3])
-        chart.add_hline(y=trendHigh)
-        chart.add_hline(y=trendLow - (diffTrend*.2))
-    """
+
     # Update Layout and print
     chart.update_layout(
         title=f"{symbols[x]} Daily 5 Minute Data with 7-day Price Action",
         xaxis_title="Time",
         yaxis_title="$",
+        xaxis_rangeslider_visible=False
     )
-    #plo.plot(chart)
+    
     # Add to PDF
     dailyChart_path=f"{symbols[x]}_daily_chart.png"
     dailyReport_path=f"{symbols[x]}_Daily_Information.pdf"
     c = canvas.Canvas(dailyReport_path, pagesize="letter")
+    c.setTitle(f"{symbols[x]} Daily Report")
     chart.write_image(dailyChart_path)
     c.drawImage(dailyChart_path,x=-17,y=250)
+
     # Add the Analyses
-    pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {trendLow} to {trendFibPrices[0]:10.2f}\n Or: {trendFibPrices[0]} to {trendFibPrices[1]:10.2f}\n Short:\n Optimal: {trendHigh} to {trendFibPrices[3]}\n Or: {trendFibPrices[3]} to {yearlyFibPrices[2]}"
+    pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {trendLow:10.2f} to {trendFibPrices[0]:10.2f}\n Or: {trendFibPrices[0]:10.2f} to {trendFibPrices[1]:10.2f}\n Short:\n Optimal: {trendHigh:10.2f} to {trendFibPrices[3]:10.2f}\n Or: {trendFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
     textobject = c.beginText(50, 225)  # Specify text position
     textobject.setFont("Helvetica", 14)  # Specify font and size
     textobject.textLines(pdf_text)  # Add text content
     c.drawText(textobject)
+
+    # Save and close PDF
     c.save()
 
 
