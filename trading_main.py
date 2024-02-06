@@ -14,7 +14,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 # Ticker Symbol and Date Range
-symbols = ["AAPL", "AMD", "AMZN", "ARM", "BITB", "GOOGL", "INTC", "MARA", "MSFT", "ORCL", "OXY", "SPY", "TSM", "TXN", "TSLA"]
+symbols = ["AAPL", "AMD", "AMZN", "ARM", "GOOGL", "MSFT", "OXY", "SPY", "TSM", "TXN", "TSLA"]
 # Initializing the color spectrum for the Fibonacci charts
 colors = ['red','orange','green','cyan']
 
@@ -53,27 +53,14 @@ def analyzeTrend(val):
 def add_text_to_pdf(pdf_path, text):
     c = canvas.Canvas(pdf_path, pagesize=letter)
     textobject = c.beginText(100, 750)  # Specify text position
-    textobject.setFont("Times New Roman", 14)  # Specify font and size
+    textobject.setFont("Helvetica", 14)  # Specify font and size
     textobject.textLines(text)  # Add text content
     c.drawText(textobject)
-    c.save()
-def create_pdf_with_chart_and_text(image_path, text, pdf_path):
-    c = canvas.Canvas(pdf_path, pagesize=letter)
+    c.showPage()
     
-    # Add chart image to the PDF
-    c.drawImage(image_path, width=400, height=300)
-    
-    # Add text to the PDF
-    textobject = c.beginText(100, 250)
-    textobject.setFont("Times New Roman", 14)
-    textobject.textLines(text)
-    c.drawText(textobject)
-    
-    c.save()
-
 # Loop through symbols
 for x in range(len(symbols)):
-    pdf_output_path = f"{symbols[x]}_Information.pdf"
+    yearly_pdf_output_path = f"{symbols[x]}_Yearly_Information.pdf"
     image_output_path = f"{symbols[x]}_chart_output.png"
     yearlyHigh = 0
     stockdaten = pdr.DataReader(symbols[x], 'stooq', st, en)
@@ -177,12 +164,20 @@ for x in range(len(symbols)):
         yaxis_title="Price",
         
     )
+    pio.write_image(graph, image_output_path)
     # Add the Analyses
-    pdf_text = f"The trend for {symbols[x]} is {analyzeTrend(trend)}\n Institutional buying: {yearly_gap_value:10.2f} or {yearly_gap_percent*100:10.2f}%\n Retail buying: {yearly_delta_value:10.2f} or {yearly_delta_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {yearlyLow} to {yearlyFibPrices[0]:10.2f}\n Or: {yearlyFibPrices[0]} to {yearlyFibPrices[1]:10.2f}\n Short:\n Optimal: {yearlyHigh} to {yearlyFibPrices[3]}\n Or: {yearlyFibPrices[3]} to {yearlyFibPrices[2]}"
+    pdf_text = f"The trend for {symbols[x]} is {analyzeTrend(trend)}\n Institutional buying: {yearly_gap_value:10.2f} or {yearly_gap_percent*100:10.2f}%\n Retail buying: {yearly_delta_value:10.2f} or {yearly_delta_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {yearlyLow} to {yearlyFibPrices[0]:10.2f}\n Or: {yearlyFibPrices[0]} to {yearlyFibPrices[1]:10.2f}\n Short:\n Optimal: {yearlyHigh:10.2f} to {yearlyFibPrices[3]:10.2f}\n Or: {yearlyFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
 
     # Add the chart to a pdf
-    create_pdf_with_chart_and_text(image_path=image_output_path,text=pdf_text,pdf_path=pdf_output_path)
+    c = canvas.Canvas(yearly_pdf_output_path, pagesize="letter")
+    c.setTitle(f"{symbols[x]} Yearly Analyses")
+    c.drawImage(image_output_path,x=-17,y=250)
+    textobject = c.beginText(50, 225)  # Specify text position
+    textobject.setFont("Helvetica", 14)  # Specify font and size
+    textobject.textLines(pdf_text)  # Add text content
+    c.drawText(textobject)
     c.showPage()
+    c.save()
     """
 
     #plo.plot(graph)
@@ -359,9 +354,17 @@ for x in range(len(symbols)):
     )
     #plo.plot(chart)
     # Add to PDF
-    chart.write_image(pdf_output_path)
+    dailyChart_path=f"{symbols[x]}_daily_chart.png"
+    dailyReport_path=f"{symbols[x]}_Daily_Information.pdf"
+    c = canvas.Canvas(dailyReport_path, pagesize="letter")
+    chart.write_image(dailyChart_path)
+    c.drawImage(dailyChart_path,x=-17,y=250)
     # Add the Analyses
     pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {trendLow} to {trendFibPrices[0]:10.2f}\n Or: {trendFibPrices[0]} to {trendFibPrices[1]:10.2f}\n Short:\n Optimal: {trendHigh} to {trendFibPrices[3]}\n Or: {trendFibPrices[3]} to {yearlyFibPrices[2]}"
-    add_text_to_pdf(pdf_output_path, pdf_text)
+    textobject = c.beginText(50, 225)  # Specify text position
+    textobject.setFont("Helvetica", 14)  # Specify font and size
+    textobject.textLines(pdf_text)  # Add text content
+    c.drawText(textobject)
+    c.save()
 
 
