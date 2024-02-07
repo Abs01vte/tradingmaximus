@@ -14,7 +14,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 
 # Ticker Symbol and Date Range
-symbols = ["AAPL", "AMD", "AMZN", "ARM", "GOOGL", "MSFT", "OXY", "SPY", "TSM", "TXN", "TSLA"]
+symbols = ["AAPL", "AMD", "AMZN", "ARM", "GOOGL", "INTC", "MSFT", "OXY", "SPY", "TSM", "TXN", "TSLA"]
 # Initializing the color spectrum for the Fibonacci charts
 colors = ['red','orange','green','cyan']
 
@@ -61,7 +61,7 @@ def add_text_to_pdf(pdf_path, text):
 # Loop through symbols
 for x in range(len(symbols)):
     yearly_pdf_output_path = f"{symbols[x]}_Yearly_Information.pdf"
-    image_output_path = f"{symbols[x]}_chart_output.png"
+    image_output_path = "temp_plot.png"
     yearlyHigh = 0
     stockdaten = pdr.DataReader(symbols[x], 'stooq', st, en)
     yearlyLow=stockdaten.High.values[x]
@@ -133,7 +133,14 @@ for x in range(len(symbols)):
     elif(yearly_delta_percent > 0.01 and yearly_gap_value > 0):
         # ...but it is near the highest prices of the year, then it is bearish
         if(stockdaten.Close.values[0] <= (yearlyHigh * 0.99)):
-            trend = 1
+            if(stockdaten.Close.values[9] < stockdaten.Close.values[0]):
+                trend = 0
+            elif(((stockdaten.Close.values[3] - stockdaten.Open.values[2]) + (stockdaten.Close.values[2] - stockdaten.Open.values[1]) + (stockdaten.Close.values[1] - stockdaten.Open.values[0])) > stockdaten.Close.values[0]*0.015):
+                trend = 0
+            elif(((stockdaten.Close.values[3] - stockdaten.Open.values[2]) + (stockdaten.Close.values[2] - stockdaten.Open.values[1]) + (stockdaten.Close.values[1] - stockdaten.Open.values[0])) < stockdaten.Close.values[0]*0.015):
+                trend = 1
+            else:
+                trend = 1
         # ...but it is in a buying zone, then it is bullish
         elif(stockdaten.Close.values[0] >= ((yearlyFibPrices[0] - yearlyLow) * 0.5)+yearlyLow and stockdaten.Close.values[0] < yearlyFibPrices[1]):
             trend = 0
@@ -176,7 +183,7 @@ for x in range(len(symbols)):
     # Add the chart to the PDF
     c = canvas.Canvas(yearly_pdf_output_path, pagesize="letter")
     c.setTitle(f"{symbols[x]} Yearly Analyses")
-    c.drawImage(image_output_path,x=-17,y=250)
+    c.drawImage(image_output_path,x=-20,y=250)
     
     # Add the analyses to the PDF
     textobject = c.beginText(50, 225)  # Specify text position
@@ -187,24 +194,8 @@ for x in range(len(symbols)):
     
     # Save and close the PDF
     c.save()
-    """
 
-    #plo.plot(graph)
-    graph.write_image(pdf_output_path)
-
-    add_text_to_pdf(pdf_output_path, pdf_text)
-"""
-
-yesterday = dt.datetime.today() - timedelta(1)
-
-
-# Daily Highs and Lows are calculated in realtime based on the newest 5min charts
-dailyHigh = 0
-dailyLow = 0
-
-# Daily Reports and Analysis for the symbols
-for x in range(len(symbols)):
-    image_output_path = f"{symbols[x]}_daily_output.png"
+    yesterday = dt.datetime.today() - timedelta(1)
     stockdata = yf.download(symbols[x], yesterday, dt.datetime.now(), interval="5m")
     dailyHigh = stockdata.High.values[0]
     dailyLow = stockdata.Low.values[0]
@@ -247,7 +238,6 @@ for x in range(len(symbols)):
         delta_value+=trendData.Close.values[index] - trendData.Open.values[index]
         if(index<len(trendData.Open.values)-1):
             gap_value+=trendData.Close.values[index + 1]- trendData.Open.values[index]
-            delta_value+=trendData.Close.values[index] - trendData.Open.values[index]
         index-=1
     
     # diffTrend is the absolute value of the Fibonacci range for the examination period
@@ -258,57 +248,232 @@ for x in range(len(symbols)):
     expansion = False
     delta_value_percent = delta_value/trendData.Open.values[3]
     gap_value_percent = gap_value/trendData.Open.values[3]
-    # If there are several gap up days that result in selling, it is then bearish, and is likely to expand to the downside
-    if(delta_value_percent<-0.02 and gap_value_percent>0.02):
-        if((trendData.Close.values[0] - trendData.Open.values[2]) < 0):
-            trend = 1
-            expansion=True
-        elif((trendData.Close.values[0] - trendData.Open.values[2]) > 0):
-            trend = 0
-
-    # If there are several gap down days that result in buying,then it is bullish, and is likely to expand to the upside
-    if(delta_value_percent>0.02 and (gap_value_percent<-0.005 or gap_value_percent >0.005)):
-        trend = 0
-        expansion=True
-    # If the change in value is a strong bearish candle, and the gaps confirm, then it is bearish
-    if(delta_value_percent < -0.02 and gap_value_percent < 0):
-        trend = 1
-    # If the change in value is a strong bullish candle, and the gaps confirm, then it is bullish
-    elif(delta_value_percent > 0.02 and gap_value_percent > 0):
-        if(stockdaten.Close.values[0] <= (yearlyHigh * 0.99)):
-            trend = 1
-        elif(stockdaten.Close.values[0] >= ((trendFibPrices[0] - yearlyLow) * 0.5)+yearlyLow and stockdaten.Close.values[0] < trendFibPrices[1]):
-            trend = 0
-    # If the change in value is neutral/doji candle...
-    elif(-0.01<=delta_value_percent<=0.01):
-        # ...but the gap value is neutral-lower, then it is bearish 
-        if(gap_value_percent < 0.005):
-            trend = 1
-            expansion = True
-        # ...but the gap value is neutral-positive, then it is sideways
-        #    because institutional sentiment is up, but retail is uncertain
-        elif(0.02<gap_value_percent>= 0.005):
-            trend = 2
-        # ...but the gap value is the main driver of the change in value
-        #    then it is bullish
-        elif(gap_value_percent>=0.02):
-            trend = 0
-            expansion = True
-    # If the change in value is bearish, but institutional sentiment is up, then it is bullish, and is likely to expand to the upside
-    elif(delta_value_percent < -0.02 and gap_value > 0.05):
-        trend = 0
-        expansion=True
-    # If the change in value is bullish, but institutional sentiment is down, then it is bearish, and is likely to expand to the upside
-    elif(delta_value_percent > 0.2 and gap_value_percent < 0.005):
-        trend = 1
-        expansion=True
-    # If all else fails, it is sideways therefore
-    else:
-        trend = 2
     
-    # snex is a temp variable
-    snex=0
+    
+    pastThree_gaps = (trendData.Close.values[4] - trendData.Open.values[3]) + (trendData.Close.values[3] - trendData.Open.values[2]) + (trendData.Close.values[2] - trendData.Open.values[1]) 
+    pastThree_candles = (trendData.Close.values[3] - trendData.Open.values[3]) + (trendData.Close.values[2] - trendData.Open.values[2]) + (trendData.Close.values[1] - trendData.Open.values[1])
+    todays_move = trendData.Close.values[0] - trendData.Open.values[0]
+    yesterdays_move = trendData.Close.values[1] - trendData.Open.values[1]
+    # If the price has moved positively...
+    if(delta_value_percent > 0.001):
+        # ...and it has moved less than 2% over the examination period with buying in the gaps, then it is bullish
+        if(delta_value_percent < 0.02 and gap_value_percent >= 0):
+            trend = 0
+            # Unless it is near the high of the year
+            if(trendData.Close.values[0] > (yearlyHigh * 0.99)):
+                trend = 1
+        # ...and it has moved less than 2% over the examination period with selling in the gaps, then it is bullish + expansive
+        elif(delta_value_percent < 0.02 and gap_value_percent < 0):
+            trend = 0
+            expansion = True
+            # Unless it is near the high of the year
+            if(trendData.Close.values[0] > (yearlyHigh * 0.99)):
+                trend = 1
+        # ...and the past three overnight sessions were middling, but today's candle is strong... 
+        elif(-0.01 <= pastThree_gaps <= 0.01 and (((todays_move)/trendData.Open.values[0])*100 > 0.02)):
+            #... then it is bullish
+            trend = 0
+        # ...and the past three overnight sessions were strong buys, AND today's candle is strong...
+        elif(pastThree_gaps > 0.01 and (((todays_move)/trendData.Open.values[0])*100 > 0.02)):
+            #... then it is bullish and likely to expand to the upside
+            trend = 0 
+            expansion = True
+        # ...and the past three overnight sessions were strongly sold, and the retail of today is not enough to push through...
+        elif(-0.02 >= pastThree_gaps and 0.02>(((todays_move)/trendData.Open.values[0])*100 > 0.005)):
+            #... then it is bearish
+            trend = 1
+        #... and the past three overnight sessions were strongly sold, but today's retail is strongly bought...
+        elif(-0.02 >= pastThree_gaps and (((todays_move)/trendData.Open.values[0])*100 >= 0.02)):
+            #...then it is bullish
+            trend = 0
+        #... and the past three overnight sessions were weakly sold, but today's retail is mainly selling/doji...
+        elif(-0.02 < pastThree_gaps < -0.01 and -0.01<(((todays_move)/trendData.Open.values[0])*100 < 0)):
+            #... then it is sideways
+            trend = 2 
+        #... and the past three overnight sessions were selling along with today's retail...
+        elif(-0.02 < pastThree_gaps < -0.01 and (pastThree_candles/delta_value)*100 < -0.01):
+            #... then it is bearish
+            trend = 1
+                       
+        # ...and it has moved significantly...
+        elif(delta_value_percent > 0.05):
+            # ...but it is the high of year...
+            if(trendData.High.values[0] == yearlyHigh):
+                #... then it is likely to continue sideways unless acted upon by an outside force
+                trend = 2
+            # ...but it is within a percent of the high of the year
+            elif(trendData.High.values[0] > (yearlyHigh*0.99)):
+                #... then it is likely to continue to the downside
+                trend = 1
+            # ...but it is in a "buying zone" either on a yearly or weekly basis
+            elif((trendData.Close.values[0] >= trendLow and trendData.Close.values[0] <= trendFibPrices[1]) or (trendData.Close.values[0] >= yearlyLow and trendData.Close.values[0] <= yearlyFibPrices[1])):
+                #... then it is bullish
+                trend = 0
+            # ...but it is in a "selling zone"...
+            elif((trendData.Close.values[0] >= trendFibPrices[2] and trendData.Close.values <= trendHigh) or (trendData.Close.values[0] >= yearlyFibPrices[2] and trendData.Close.values[0] <= yearlyHigh)):
+                #... without significant support
+                if(gap_value_percent < -0.04):
+                    #... then it is bearish
+                    trend = 1
+                elif(-0.04 > gap_value_percent < 0.01):
+                    trend = 0
+                #... with significant support
+                if(gap_value_percent >= 0.01 and (trendData.Close.values[0]-trendData.Open.values[0]) > 0):
+                    #... then it is bullish
+                    trend = 0
+                #... it otherwise results in a doji/don't want to trade that
+                else:
+                    trend = 2                  
+        # If today closed below yesterday
+        elif((trendData.Close.values[0] - trendData.Close.values[1]) < 0):
+            # then it is generally bearish
+            trend = 1   
+            # Unless today is a gap down close down (extra cases)
+            if(todays_move < 0):
+                # Case 1: the price closed below over half of yesterday's move, 
+                #         indicating market indecision or the appearance of a "dark cover" pattern in the candles 
+                if(abs(todays_move)/abs(yesterdays_move) > 0.5):
+                    trend = 1
+                # Case 2: the price closed above half of yesterday's move,
+                #         indicating that today is probably a pullback...
+                elif(abs(todays_move)/(yesterdays_move) < 0.5):
+                    # ...if the gap down between 49.99% to 33.33% below yesterday's close, it is bullish
+                    if((trendData.Open.values[0] - trendData.Close.values[1])/(trendData.Close.values[1]-trendData.Open.values[1]) >= (1.0/3.0)):
+                        trend = 0
+                    # ... if the gap down is less than 33.333(...)2% and 0%...
+                    elif(abs(trendData.Open.values[0] - trendData.Close.values[1])/(trendData.Close.values[1]-trendData.Open.values[1]) < (1.0/3.0)):
+                        # and today's move is more than half of yesterday's move, then it's bullish
+                        if(abs(trendData.Close.values[0]-trendData.Open.values[0])/(yesterdays_move) > 0.5):
+                            trend = 1
+                        # and today's move accounts for less than half of 
+                        elif(0.001 < abs(trendData.Close.values[0] - trendData.Open.values[0])/yesterdays_move < 0.5):
+                            trend = 0
+                        # it is otherwise sideways
+                        else:
+                            trend = 2
+                # it is otherwise sideways
+                else:
+                    trend = 2
+            # But if today is a positive move
+            elif (todays_move > 0):
+                yesterdayDown = False
+                if(yesterdays_move < 0):
+                    yesterdayDown = True
+                elif(yesterdayDown):
+                    # and it is larger than yesterday, then it is bullish + expansive
+                    if(todays_move > abs(yesterdays_move)):
+                        trend = 0
+                        expansion = True
+                    # and today's move accounts for over 80% of the movement yesterday (positive or negative) it is bullish
+                    elif(todays_move/abs(yesterdays_move) >= 0.8):
+                        trend = 0
+                    # if it is between the ranges of yesterday and today, then it is bearish. Likely a dead-cat bounce
+                    elif(0.4 < todays_move/abs(yesterdays_move) < 0.8):
+                        trend = 1
+        # it is otherwise sideways
+        else:
+            trend = 2 
+    # If the price has moved negatively...
+    elif(delta_value_percent < 0):
+        # Case 1: no more than five percent of the stock's value
+        if(-0.05 < delta_value_percent):
+            # If it is less than one percent of the stock's value, it is sideways 
+            if(delta_value_percent > -0.01):
+                trend = 2
+            # if it is more than one percent and less than 5, it's bearish 
+            elif(-0.01 > delta_value_percent > 0.05):
+                trend = 1
+            # unless today's move is up (potentially)
+            elif((todays_move)>0):
+                # and it is up over half of the total negative value to date
+                if((trendData.Close.values[0]-trendData.Open.values[0])/abs(delta_value) > 0.5):
+                    # it's bullish
+                    trend = 0
+                # and if it is less than that...
+                elif((trendData.Close.values[0] - trendData.Open.values[0])/abs(delta_value) < 0.5):
+                    # Such as between 30-50%
+                    if(0.3 < (trendData.Close.values[0] - trendData.Open.values[0])/abs(delta_value) < 0.5):
+                        # and yesterday is up as well, means it is a reversal
+                        if(yesterdays_move > 0):
+                            trend = 0
+                        # otherwise it is bearish
+                        else:
+                            trend = 1
+                    # it is otherwise bearish
+                    else:
+                        trend = 1
+            # It is otherwise sideways
+            else:
+                trend = 2
+        # if the stock has fallen more than 5%
+        if(delta_value_percent < -0.05):
+            # and has gapped up and closed down
+            if(gap_value_percent > 0.02):
+                # it's bearish and in a hard way
+                trend = 1
+                expansion = True
+            #if the past three candles are a "three black crows" pattern
+            elif(abs(pastThree_candles/delta_value) >= 0.8):
+                # it's bearish and in a hard way
+                trend = 1 
+                expansion = True
+                # unless...
+                # today closed up...
+                if((trendData.Close.values[0] - trendData.Open.values[0]) > 0):
+                    # and encompasses over fifty percent of the previous candle
+                    if((trendData.Close.values[0] - trendData.Open.values[0])/abs(yesterdays_move) > 0.5):
+                        # it's bullish
+                        trend = 0
+                    # and it is less than halfway up the previous candle
+                    elif((trendData.Close.values[0] - trendData.Open.values[0])/abs(yesterdays_move) < 0.5):
+                        # if the close is between 33.33-49.99%, then it is bullish
+                        if((todays_move)/abs(trendData.Close.values[1]-trendData.Open.values[1]) >= (1.0/3.0)):
+                            trend = 0
+                        # if the gap is down and it closes below a third of the previous candle, the overall power of the sellers will win out
+                        elif((trendData.Open.values[0] - trendData.Close.values[1]) < 0 and (todays_move)/abs(trendData.Close.values[1]-trendData.Open.values[1]) < (1.0/3.0)):
+                            trend = 1
+                        # it is otherwise sideways
+                        else:
+                            trend = 2
+            # if the past three candles are close to overshadowed by today's candle
+            elif(0.5 < abs(pastThree_candles/delta_value) < 0.8):
+                # and it closes down, then it is bearish
+                if((trendData.Close.values[0]-trendData.Open.values[0]) < 0):
+                    trend = 1
+                # and it closes up, then...
+                elif(trendData.Close.values[0]-trendData.Open.values[0] > 0):
+                    # if it breaks above the average of yesterday, it is bullish
+                    if((trendData.Close.values[0] - trendData.Open.values[0])/abs(yesterdays_move) >= 0.5):
+                        trend = 0
+                    # if it stays below the average...
+                    elif((trendData.Close.values[0] - trendData.Open.values[0])/abs(yesterdays_move) < 0.5):
+                        # ... between 33.33% and 49.99%, it is bullish
+                        if(abs(todays_move)/abs(yesterdays_move) >= (1.0/3.0)):
+                            trend = 0
+                        
+                        elif(0.01 < abs(todays_move)/abs(yesterdays_move) < (1.0/3.0)):
+                                trend = 1
+                        else:
+                            trend = 2
+                else:
+                    trend = 1
+    # If the price has not moved (or is otherwise not a trade this program/strategy recommends), it is simply sideways/doji candle
+    else:
+        trend = 2    
+
+
+
+    # Daily Reports and Analysis for the symbols
+
+    
+    
+
+    # Daily Highs and Lows are calculated in realtime based on the newest 5min charts
+    dailyHigh = 0
+    dailyLow = 0
+
     # For each percentage point in fibLevels, a relative Fibonacci level is created for the trend values of the stock
+    snex=0
     while(snex < 4):
         trendFibPrices[snex] = trendLow + (diffTrend * fibLevels[snex])
         snex+=1
@@ -349,15 +514,19 @@ for x in range(len(symbols)):
     )
     
     # Add to PDF
-    dailyChart_path=f"{symbols[x]}_daily_chart.png"
     dailyReport_path=f"{symbols[x]}_Daily_Information.pdf"
     c = canvas.Canvas(dailyReport_path, pagesize="letter")
     c.setTitle(f"{symbols[x]} Daily Report")
-    chart.write_image(dailyChart_path)
-    c.drawImage(dailyChart_path,x=-17,y=250)
+    chart.write_image(image_output_path)
+    c.drawImage(image_output_path,x=-20,y=250)
 
     # Add the Analyses
-    pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {trendLow:10.2f} to {trendFibPrices[0]:10.2f}\n Or: {trendFibPrices[0]:10.2f} to {trendFibPrices[1]:10.2f}\n Short:\n Optimal: {trendHigh:10.2f} to {trendFibPrices[3]:10.2f}\n Or: {trendFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
+    if(trend == 0):
+        pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}. Consider waiting for the lowest entry in the zones before buying, or if you wish to buy at all.\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {trendLow:10.2f} to {trendFibPrices[0]:10.2f}\n Or: {trendFibPrices[0]:10.2f} to {trendFibPrices[1]:10.2f}\n"
+    elif(trend == 1):
+        pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}. Consider waiting for the price to bounce to a higher level intraday before getting short, if you wish to get short or sell at all.\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\nShort:\n Optimal: {trendHigh:10.2f} to {trendFibPrices[3]:10.2f}\n Or: {trendFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
+    else:
+        pdf_text = f"The trend for {symbols[x]} over the examination period is {analyzeTrend(trend)}, consider vertical or call-credit/put-credit spreads, if you wish to get involved at all.\n Institutional buying: {gap_value:10.2f} or {gap_value_percent*100:10.2f}%\n Retail buying: {delta_value:10.2f} or {delta_value_percent*100:10.2f}%\n Buying zones:\n Long- \nOptimal: {trendLow:10.2f} to {trendFibPrices[0]:10.2f}\n Or: {trendFibPrices[0]:10.2f} to {trendFibPrices[1]:10.2f}\n Short:\n Optimal: {trendHigh:10.2f} to {trendFibPrices[3]:10.2f}\n Or: {trendFibPrices[3]:10.2f} to {yearlyFibPrices[2]:10.2f}"
     textobject = c.beginText(50, 225)  # Specify text position
     textobject.setFont("Helvetica", 14)  # Specify font and size
     textobject.textLines(pdf_text)  # Add text content
@@ -365,5 +534,11 @@ for x in range(len(symbols)):
 
     # Save and close PDF
     c.save()
+
+
+
+
+
+    
 
 
